@@ -17,28 +17,6 @@ base_df.sort_values("timestamp", inplace=True)
 base_df = base_df[base_df['channel_name'] == 'kudos']
 base_df["week_start"] = base_df["timestamp"].dt.to_period("W").dt.start_time
 
-# leaderboard_givers = base_df.groupby("giver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
-# leaderboard_receivers = base_df.groupby("receiver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
-# leaderboard_redeemers = pd.read_csv("data/Concord_redemptions_alltime.csv")
-# leaderboard_redeemers = leaderboard_redeemers.groupby("name")["redemption_amount"].sum().reset_index().sort_values("redemption_amount", ascending=False)
-
-# leaderboard_message_length = (
-#     base_df[base_df["type"] == "message"]
-#     .groupby("giver_name")
-#     .agg(message_count=("message", "size"), avg_length=("length", "mean"))
-#     .reset_index()
-#     .query("message_count >= 10")
-#     .sort_values("avg_length", ascending=False)
-# )
-
-# leaderboard_messages_sent = (
-#     base_df[base_df["type"] == "message"]
-#     .groupby("giver_name")
-#     .agg(message_count=("message", "nunique"))
-#     .reset_index()
-#     .sort_values("message_count", ascending=False)
-# )
-
 
 def make_leaderboard_rows(df, name_col, value_col, start_rank=1, value_format=None, secondary_value_col=None, secondary_format=None):
     def format_value(value):
@@ -163,7 +141,7 @@ lbd_givers, lbd_msg_len, lbd_msg_sent = make_leaderboards_from_df(base_df)
 # Helper functions to build leaderboard sections
 def build_leaderboard_giver(df):
     return html.Div([
-        html.H3("Top 10 Givers", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
+        html.H3("Most Tacos Given", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
         html.Div([
             html.Div(
                 make_leaderboard_rows(df.head(5), "giver_name", "tacos", start_rank=1),
@@ -178,7 +156,7 @@ def build_leaderboard_giver(df):
 
 def build_leaderboard_avg(df):
     return html.Div([
-        html.H3("Top 10 Avg Message Length", style={"margin": "0 0 4px 0", "color": MAIN_COLOR}),
+        html.H3("Longest Avg Message Length", style={"margin": "0 0 4px 0", "color": MAIN_COLOR}),
         html.Div("Min 10 messages", style={"margin": "0 0 12px 0", "color": "#777", "fontSize": "0.9rem"}),
         html.Div([
             html.Div(
@@ -210,7 +188,7 @@ def build_leaderboard_avg(df):
 
 def build_leaderboard_sent(df):
     return html.Div([
-        html.H3("Top 10 Messages Sent", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
+        html.H3("Most Messages Sent", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
         html.Div([
             html.Div(
                 make_leaderboard_rows(
