@@ -1,6 +1,7 @@
-from dash import Dash, html, dcc
+from dash import Dash, html, dcc, Input, Output, callback
 import plotly.express as px
 import pandas as pd
+import os
 
 # Theme colors
 MAIN_COLOR = "#FF4838"  # primary accent (red)
@@ -67,282 +68,307 @@ def make_leaderboard_rows(df, name_col, value_col, start_rank=1, value_format=No
         for row_idx, (_, row) in enumerate(df.head(5).iterrows())
     ]
 
-line_df = (
-    base_df.groupby(["week_start", "type"], as_index=False)["tacos"]
-    .sum()
-    .sort_values("week_start")
-)
+def make_figures(df):
+    """Generate tacos and messages figures from filtered dataframe."""
+    line_df = (
+        df.groupby(["week_start", "type"], as_index=False)["tacos"]
+        .sum()
+        .sort_values("week_start")
+    )
+    
+    fig = px.line(
+        line_df,
+        x="week_start",
+        y="tacos",
+        color="type",
+        color_discrete_map={"message": MAIN_COLOR, "reaction": ALT_COLOR},
+        title="Tacos Over Time by Week and Type",
+        markers=True,
+    )
+    fig.update_layout(
+        xaxis_title="Week Starting",
+        yaxis_title="Tacos",
+        legend_title="Type",
+        font=dict(family="Poppins, Arial, sans-serif"),
+        legend=dict(orientation="h", y=-0.18, yanchor="top", x=0.5, xanchor="center", font=dict(size=12)),
+        margin=dict(r=80),
+    )
+    
+    messages_count_df = (
+        df[df["type"] == "message"].groupby("week_start").size().reset_index(name="count")
+    )
+    
+    fig_messages = px.line(
+        messages_count_df,
+        x="week_start",
+        y="count",
+        title="Messages Per Week",
+        markers=True,
+    )
+    fig_messages.update_layout(xaxis_title="Week Starting", yaxis_title="Message Count")
+    fig_messages.update_traces(line=dict(color=MAIN_COLOR))
+    fig_messages.update_layout(font=dict(family="Poppins, Arial, sans-serif"))
+    
+    return fig, fig_messages
 
-fig = px.line(
-    line_df,
-    x="week_start",
-    y="tacos",
-    color="type",
-    color_discrete_map={"message": MAIN_COLOR, "reaction": ALT_COLOR},
-    title="Tacos Over Time by Week and Type",
-    markers=True,
-)
-fig.update_layout(
-    xaxis_title="Week Starting",
-    yaxis_title="Tacos",
-    legend_title="Type",
-    font=dict(family="Poppins, Arial, sans-serif"),
-    legend=dict(orientation="h", y=-0.18, yanchor="top", x=0.5, xanchor="center", font=dict(size=12)),
-    margin=dict(r=80),
-)
+def make_leaderboards_from_df(df):
+    """Calculate leaderboards from filtered dataframe."""
+    lbd_givers = df.groupby("giver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
+    
+    lbd_msg_len = (
+        df[df["type"] == "message"]
+        .groupby("giver_name")
+        .agg(message_count=("message", "size"), avg_length=("length", "mean"))
+        .reset_index()
+        .query("message_count >= 10")
+        .sort_values("avg_length", ascending=False)
+    )
+    
+    lbd_msg_sent = (
+        df[df["type"] == "message"]
+        .groupby("giver_name")
+        .agg(message_count=("message", "size"))
+        .reset_index()
+        .sort_values("message_count", ascending=False)
+    )
+    
+    return lbd_givers, lbd_msg_len, lbd_msg_sent
 
-# compute weekly message counts (count of rows where type == 'message')
-messages_count_df = (
-    base_df[base_df["type"] == "message"].groupby("week_start").size().reset_index(name="count")
-)
-
-fig_messages = px.line(
-    messages_count_df,
-    x="week_start",
-    y="count",
-    title="Messages Per Week",
-    markers=True,
-)
-fig_messages.update_layout(xaxis_title="Week Starting", yaxis_title="Message Count")
-fig_messages.update_traces(line=dict(color=MAIN_COLOR))
-fig_messages.update_layout(font=dict(family="Poppins, Arial, sans-serif"))
-
-app = Dash(__name__, external_stylesheets=[FONT_URL])
-
+# Styling
 container_style = {
+    "maxWidth": "1400px",
+    "margin": "0 auto",
+    "padding": "30px 20px",
     "fontFamily": "Poppins, Arial, sans-serif",
-    "padding": "24px",
-    "backgroundColor": "#F0E7D5",
-    "minHeight": "100vh",
+    "backgroundColor": "#f9f9f9",
 }
 
-card_style = {
-    "backgroundColor": "#ffffff",
-    "padding": "18px",
+leaderboard_card_style = {
+    "backgroundColor": "#fff",
+    "padding": "16px",
     "borderRadius": "8px",
-    "boxShadow": "0 2px 6px rgba(0,0,0,0.08)",
+    "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
+    "marginBottom": "12px",
 }
 
-leaderboard_card_style = {**card_style, "marginBottom": "16px"}
+# Initialize app
+app = Dash(__name__)
+app.title = "Concord Tacos"
 
+# Generate initial figures and leaderboards
+fig, fig_messages = make_figures(base_df)
+lbd_givers, lbd_msg_len, lbd_msg_sent = make_leaderboards_from_df(base_df)
 
-def make_givers_leaderboard():
-    return html.Div(
-        [
-            html.H3("Top 10 Givers", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
+# Helper functions to build leaderboard sections
+def build_leaderboard_giver(df):
+    return html.Div([
+        html.H3("Top 10 Givers", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
+        html.Div([
             html.Div(
-                [
-                    html.Div(
-                        make_leaderboard_rows(leaderboard_givers.head(5), "giver_name", "tacos", start_rank=1),
-                        style={"flex": "1", "minWidth": "0"},
-                    ),
-                    html.Div(
-                        make_leaderboard_rows(leaderboard_givers.iloc[5:10], "giver_name", "tacos", start_rank=6),
-                        style={"flex": "1", "minWidth": "0"},
-                    ),
-                ],
-                style={"display": "flex", "gap": "14px"},
+                make_leaderboard_rows(df.head(5), "giver_name", "tacos", start_rank=1),
+                style={"flex": "1", "minWidth": "0"},
             ),
-        ],
-        style=leaderboard_card_style,
-    )
-
-
-def make_avg_length_leaderboard():
-    return html.Div(
-        [
-            html.H3("Top 10 Avg Message Length", style={"margin": "0 0 4px 0", "color": MAIN_COLOR}),
-            html.Div("Min 10 messages", style={"margin": "0 0 12px 0", "color": "#777", "fontSize": "0.9rem"}),
             html.Div(
-                [
-                    html.Div(
-                        make_leaderboard_rows(
-                            leaderboard_message_length.head(5),
-                            "giver_name",
-                            "avg_length",
-                            start_rank=1,
-                            value_format=lambda v: f"{v:.1f}",
-                            secondary_value_col="message_count",
-                            secondary_format=lambda v: f"({int(v):,} msgs)",
-                        ),
-                        style={"flex": "1", "minWidth": "0"},
-                    ),
-                    html.Div(
-                        make_leaderboard_rows(
-                            leaderboard_message_length.iloc[5:10],
-                            "giver_name",
-                            "avg_length",
-                            start_rank=6,
-                            value_format=lambda v: f"{v:.1f}",
-                            secondary_value_col="message_count",
-                            secondary_format=lambda v: f"({int(v):,} msgs)",
-                        ),
-                        style={"flex": "1", "minWidth": "0"},
-                    ),
-                ],
-                style={"display": "flex", "gap": "14px"},
+                make_leaderboard_rows(df.iloc[5:10], "giver_name", "tacos", start_rank=6),
+                style={"flex": "1", "minWidth": "0"},
             ),
-        ],
-        style=leaderboard_card_style,
-    )
+        ], style={"display": "flex", "gap": "14px"}),
+    ], style=leaderboard_card_style)
 
+def build_leaderboard_avg(df):
+    return html.Div([
+        html.H3("Top 10 Avg Message Length", style={"margin": "0 0 4px 0", "color": MAIN_COLOR}),
+        html.Div("Min 10 messages", style={"margin": "0 0 12px 0", "color": "#777", "fontSize": "0.9rem"}),
+        html.Div([
+            html.Div(
+                make_leaderboard_rows(
+                    df.head(5),
+                    "giver_name",
+                    "avg_length",
+                    start_rank=1,
+                    value_format=lambda v: f"{v:.1f}",
+                    secondary_value_col="message_count",
+                    secondary_format=lambda v: f"({int(v):,} msgs)",
+                ),
+                style={"flex": "1", "minWidth": "0"},
+            ),
+            html.Div(
+                make_leaderboard_rows(
+                    df.iloc[5:10],
+                    "giver_name",
+                    "avg_length",
+                    start_rank=6,
+                    value_format=lambda v: f"{v:.1f}",
+                    secondary_value_col="message_count",
+                    secondary_format=lambda v: f"({int(v):,} msgs)",
+                ),
+                style={"flex": "1", "minWidth": "0"},
+            ),
+        ], style={"display": "flex", "gap": "14px"}),
+    ], style=leaderboard_card_style)
+
+def build_leaderboard_sent(df):
+    return html.Div([
+        html.H3("Top 10 Messages Sent", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
+        html.Div([
+            html.Div(
+                make_leaderboard_rows(
+                    df.head(5),
+                    "giver_name",
+                    "message_count",
+                    start_rank=1,
+                ),
+                style={"flex": "1", "minWidth": "0"},
+            ),
+            html.Div(
+                make_leaderboard_rows(
+                    df.iloc[5:10],
+                    "giver_name",
+                    "message_count",
+                    start_rank=6,
+                ),
+                style={"flex": "1", "minWidth": "0"},
+            ),
+        ], style={"display": "flex", "gap": "14px"}),
+    ], style=leaderboard_card_style)
+
+# App layout
 app.layout = html.Div(
     [
+        html.Link(rel="stylesheet", href=FONT_URL),
         html.Div(
-            html.H1(
-                "Concord Tacos",
-                style={"color": MAIN_COLOR, "margin": "0 0 12px 0", "fontWeight": "300"},
-            ),
-            style={"marginBottom": "16px"},
+            [
+                html.H1("Concord Tacos", style={"margin": "0 0 20px 0", "color": MAIN_COLOR}),
+                html.Div([
+                    html.Label("Filter by Date Range:", style={"marginRight": "10px", "fontWeight": "600"}),
+                    dcc.DatePickerRange(
+                        id="date-range-picker",
+                        start_date="2023-12-04",
+                        end_date="2026-04-02",
+                        display_format="YYYY-MM-DD",
+                        style={"marginRight": "20px"},
+                    ),
+                ], style={"marginBottom": "20px", "display": "flex", "alignItems": "center"}),
+            ],
+            style={"borderBottom": "2px solid #eee", "paddingBottom": "20px"}
         ),
         html.Div(
             [
-                html.Div(
-                    [
-                        dcc.Tabs(
-                            id="top-tabs",
-                            value="tacos",
+                dcc.Tabs(
+                    id="chart-tabs",
+                    value="tab-tacos",
+                    children=[
+                        dcc.Tab(
+                            label="Tacos",
+                            value="tab-tacos",
                             children=[
-                                dcc.Tab(
-                                    label="Tacos",
-                                    value="tacos",
-                                    children=[
-                                        dcc.Graph(id="top-graph-tacos", figure=fig, style={"width": "100%", "minWidth": "300px"}),
-                                    ],
-                                ),
-                                dcc.Tab(
-                                    label="Messages",
-                                    value="messages",
-                                    children=[
-                                        dcc.Graph(id="top-graph-messages", figure=fig_messages, style={"width": "100%", "minWidth": "300px"}),
-                                    ],
+                                dcc.Graph(
+                                    id="top-graph-tacos",
+                                    figure=fig,
                                 ),
                             ],
-                            style={"marginBottom": "12px"},
+                            style={"padding": "12px"},
                         ),
-                    ],
-                    style={**card_style, "flex": "1 1 65%", "minWidth": "340px"},
-                ),
-                html.Div(
-                    [
-                        dcc.Tabs(
-                            id="leaderboard-tabs",
-                            value="tacos",
+                        dcc.Tab(
+                            label="Messages",
+                            value="tab-messages",
                             children=[
-                                dcc.Tab(
-                                    label="Total Given",
-                                    value="tacos",
-                                    children=[
-                                        html.Div(
-                                            [
-                                                html.H3("Top 10 Givers", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
-                                                html.Div(
-                                                    [
-                                                        html.Div(
-                                                            make_leaderboard_rows(leaderboard_givers.head(5), "giver_name", "tacos", start_rank=1),
-                                                            style={"flex": "1", "minWidth": "0"},
-                                                        ),
-                                                        html.Div(
-                                                            make_leaderboard_rows(leaderboard_givers.iloc[5:10], "giver_name", "tacos", start_rank=6),
-                                                            style={"flex": "1", "minWidth": "0"},
-                                                        ),
-                                                    ],
-                                                    style={"display": "flex", "gap": "14px"},
-                                                ),
-                                            ],
-                                            style=leaderboard_card_style,
-                                        ),
-                                    ],
-                                ),
-                                dcc.Tab(
-                                    label="Avg Length",
-                                    value="avg_length",
-                                    children=[
-                                        html.Div(
-                                            [
-                                                html.H3("Top 10 Avg Message Length", style={"margin": "0 0 4px 0", "color": MAIN_COLOR}),
-                                                html.Div("Min 10 messages", style={"margin": "0 0 12px 0", "color": "#777", "fontSize": "0.9rem"}),
-                                                html.Div(
-                                                    [
-                                                        html.Div(
-                                                            make_leaderboard_rows(
-                                                                leaderboard_message_length.head(5),
-                                                                "giver_name",
-                                                                "avg_length",
-                                                                start_rank=1,
-                                                                value_format=lambda v: f"{v:.1f}",
-                                                                secondary_value_col="message_count",
-                                                                secondary_format=lambda v: f"({int(v):,} msgs)",
-                                                            ),
-                                                            style={"flex": "1", "minWidth": "0"},
-                                                        ),
-                                                        html.Div(
-                                                            make_leaderboard_rows(
-                                                                leaderboard_message_length.iloc[5:10],
-                                                                "giver_name",
-                                                                "avg_length",
-                                                                start_rank=6,
-                                                                value_format=lambda v: f"{v:.1f}",
-                                                                secondary_value_col="message_count",
-                                                                secondary_format=lambda v: f"({int(v):,} msgs)",
-                                                            ),
-                                                            style={"flex": "1", "minWidth": "0"},
-                                                        ),
-                                                    ],
-                                                    style={"display": "flex", "gap": "14px"},
-                                                ),
-                                            ],
-                                            style=leaderboard_card_style,
-                                        ),
-                                    ],
-                                ),
-                                dcc.Tab(
-                                    label="Messages Sent",
-                                    value="messages_sent",
-                                    children=[
-                                        html.Div(
-                                            [
-                                                html.H3("Top 10 Messages Sent", style={"margin": "0 0 12px 0", "color": MAIN_COLOR}),
-                                                html.Div(
-                                                    [
-                                                        html.Div(
-                                                            make_leaderboard_rows(
-                                                                leaderboard_messages_sent.head(5),
-                                                                "giver_name",
-                                                                "message_count",
-                                                                start_rank=1,
-                                                            ),
-                                                            style={"flex": "1", "minWidth": "0"},
-                                                        ),
-                                                        html.Div(
-                                                            make_leaderboard_rows(
-                                                                leaderboard_messages_sent.iloc[5:10],
-                                                                "giver_name",
-                                                                "message_count",
-                                                                start_rank=6,
-                                                            ),
-                                                            style={"flex": "1", "minWidth": "0"},
-                                                        ),
-                                                    ],
-                                                    style={"display": "flex", "gap": "14px"},
-                                                ),
-                                            ],
-                                            style=leaderboard_card_style,
-                                        ),
-                                    ],
+                                dcc.Graph(
+                                    id="top-graph-messages",
+                                    figure=fig_messages,
                                 ),
                             ],
-                            style={"marginBottom": "12px"},
+                            style={"padding": "12px"},
                         ),
                     ],
-                    style={"flex": "1 1 30%", "minWidth": "280px"},
                 ),
             ],
-            style={"display": "flex", "gap": "20px", "flexWrap": "wrap", "maxWidth": "1100px", "margin": "0 auto"},
+            style={
+                "backgroundColor": "#fff",
+                "borderRadius": "8px",
+                "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
+                "padding": "0",
+                "marginTop": "20px",
+            },
+        ),
+        html.Div(
+            [
+                dcc.Tabs(
+                    id="leaderboard-tabs",
+                    value="tab-givers",
+                    children=[
+                        dcc.Tab(
+                            label="Total Tacos Given",
+                            value="tab-givers",
+                            children=[
+                                html.Div(id="leaderboard-givers-content", children=build_leaderboard_giver(lbd_givers)),
+                            ],
+                            style={"padding": "12px"},
+                        ),
+                        dcc.Tab(
+                            label="Avg Message Length",
+                            value="tab-avg",
+                            children=[
+                                html.Div(id="leaderboard-avg-content", children=build_leaderboard_avg(lbd_msg_len)),
+                            ],
+                            style={"padding": "12px"},
+                        ),
+                        dcc.Tab(
+                            label="Total Messages Sent",
+                            value="tab-sent",
+                            children=[
+                                html.Div(id="leaderboard-sent-content", children=build_leaderboard_sent(lbd_msg_sent)),
+                            ],
+                            style={"padding": "12px"},
+                        ),
+                    ],
+                ),
+            ],
+            style={
+                "backgroundColor": "#fff",
+                "borderRadius": "8px",
+                "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
+                "padding": "0",
+                "marginTop": "20px",
+            },
         ),
     ],
     style=container_style,
 )
 
+# Callback to update all visualizations based on date range
+@callback(
+    Output("top-graph-tacos", "figure"),
+    Output("top-graph-messages", "figure"),
+    Output("leaderboard-givers-content", "children"),
+    Output("leaderboard-avg-content", "children"),
+    Output("leaderboard-sent-content", "children"),
+    Input("date-range-picker", "start_date"),
+    Input("date-range-picker", "end_date"),
+)
+def update_dashboards(start_date, end_date):
+    """Update all visualizations based on selected date range."""
+    # Filter base_df by date range
+    if start_date and end_date:
+        filtered_df = base_df[
+            (base_df["timestamp"] >= start_date) & (base_df["timestamp"] <= end_date)
+        ].copy()
+    else:
+        filtered_df = base_df.copy()
+    
+    # Regenerate figures
+    fig_updated, fig_messages_updated = make_figures(filtered_df)
+    
+    # Regenerate leaderboards
+    lbd_givers_updated, lbd_msg_len_updated, lbd_msg_sent_updated = make_leaderboards_from_df(filtered_df)
+    
+    # Build leaderboard HTML
+    givers_html = build_leaderboard_giver(lbd_givers_updated)
+    avg_html = build_leaderboard_avg(lbd_msg_len_updated)
+    sent_html = build_leaderboard_sent(lbd_msg_sent_updated)
+    
+    return fig_updated, fig_messages_updated, givers_html, avg_html, sent_html
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.getenv("PORT", 8080))
+    app.run_server(host="0.0.0.0", port=port, debug=False) 
