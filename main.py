@@ -14,29 +14,30 @@ base_df['length'] = base_df['message'].str.len()
 
 base_df["timestamp"] = pd.to_datetime(base_df["timestamp"], errors="coerce")
 base_df.sort_values("timestamp", inplace=True)
+base_df = base_df[base_df['channel_name'] == 'kudos']
 base_df["week_start"] = base_df["timestamp"].dt.to_period("W").dt.start_time
 
-leaderboard_givers = base_df.groupby("giver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
-leaderboard_receivers = base_df.groupby("receiver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
-leaderboard_redeemers = pd.read_csv("data/Concord_redemptions_alltime.csv")
-leaderboard_redeemers = leaderboard_redeemers.groupby("name")["redemption_amount"].sum().reset_index().sort_values("redemption_amount", ascending=False)
+# leaderboard_givers = base_df.groupby("giver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
+# leaderboard_receivers = base_df.groupby("receiver_name")["tacos"].sum().reset_index().sort_values("tacos", ascending=False)
+# leaderboard_redeemers = pd.read_csv("data/Concord_redemptions_alltime.csv")
+# leaderboard_redeemers = leaderboard_redeemers.groupby("name")["redemption_amount"].sum().reset_index().sort_values("redemption_amount", ascending=False)
 
-leaderboard_message_length = (
-    base_df[base_df["type"] == "message"]
-    .groupby("giver_name")
-    .agg(message_count=("message", "size"), avg_length=("length", "mean"))
-    .reset_index()
-    .query("message_count >= 10")
-    .sort_values("avg_length", ascending=False)
-)
+# leaderboard_message_length = (
+#     base_df[base_df["type"] == "message"]
+#     .groupby("giver_name")
+#     .agg(message_count=("message", "size"), avg_length=("length", "mean"))
+#     .reset_index()
+#     .query("message_count >= 10")
+#     .sort_values("avg_length", ascending=False)
+# )
 
-leaderboard_messages_sent = (
-    base_df[base_df["type"] == "message"]
-    .groupby("giver_name")
-    .agg(message_count=("message", "size"))
-    .reset_index()
-    .sort_values("message_count", ascending=False)
-)
+# leaderboard_messages_sent = (
+#     base_df[base_df["type"] == "message"]
+#     .groupby("giver_name")
+#     .agg(message_count=("message", "nunique"))
+#     .reset_index()
+#     .sort_values("message_count", ascending=False)
+# )
 
 
 def make_leaderboard_rows(df, name_col, value_col, start_rank=1, value_format=None, secondary_value_col=None, secondary_format=None):
@@ -118,7 +119,7 @@ def make_leaderboards_from_df(df):
     lbd_msg_len = (
         df[df["type"] == "message"]
         .groupby("giver_name")
-        .agg(message_count=("message", "size"), avg_length=("length", "mean"))
+        .agg(message_count=("message", "nunique"), avg_length=("length", "mean"))
         .reset_index()
         .query("message_count >= 10")
         .sort_values("avg_length", ascending=False)
@@ -127,7 +128,7 @@ def make_leaderboards_from_df(df):
     lbd_msg_sent = (
         df[df["type"] == "message"]
         .groupby("giver_name")
-        .agg(message_count=("message", "size"))
+        .agg(message_count=("message", "nunique"))
         .reset_index()
         .sort_values("message_count", ascending=False)
     )
