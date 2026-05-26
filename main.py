@@ -10,7 +10,7 @@ FONT_URL = "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&di
 
 # Load data once at startup
 base_df = pd.read_csv("data/Concord_taco_data_alltime_RAW_EXPORT.csv")
-base_df['length'] = base_df['message'].str.len()
+base_df['length'] = base_df['message'].str.split().str.len()
 
 base_df["timestamp"] = pd.to_datetime(base_df["timestamp"], errors="coerce")
 base_df.sort_values("timestamp", inplace=True)
@@ -233,7 +233,7 @@ def build_leaderboard_giver(df):
 def build_leaderboard_avg(df):
     return html.Div([
         html.H3("Longest Avg Message Length", style={"margin": "0 0 4px 0", "color": MAIN_COLOR}),
-        html.Div("Min 10 messages", style={"margin": "0 0 12px 0", "color": "#777", "fontSize": "0.9rem"}),
+        html.Div("Min 10 messages, by word count", style={"margin": "0 0 12px 0", "color": "#777", "fontSize": "0.9rem"}),
         html.Div([
             html.Div(
                 make_leaderboard_rows(
