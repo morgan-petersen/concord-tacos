@@ -17,6 +17,11 @@ base_df.sort_values("timestamp", inplace=True)
 base_df = base_df[base_df['channel_name'] == 'kudos']
 base_df["week_start"] = base_df["timestamp"].dt.to_period("W").dt.start_time
 
+redemptions_df = pd.read_csv("data/Concord_redemptions_alltime.csv")
+redemptions_df['program_name'] = redemptions_df['title'].str.replace(" $10 donation to", "").str.replace(" - $10 donation", "").str.replace(" $10 donation", "")
+redemptions_df['timestamp'] = pd.to_datetime(redemptions_df['timestamp'], errors='coerce')
+redemptions_df['week_start'] = redemptions_df['timestamp'].dt.to_period("W").dt.start_time
+
 
 def make_leaderboard_rows(df, name_col, value_col, start_rank=1, value_format=None, secondary_value_col=None, secondary_format=None):
     def format_value(value):
@@ -64,6 +69,7 @@ def make_figures(df):
         title="Tacos Over Time by Week and Type",
         markers=True,
     )
+    
     fig.update_layout(
         xaxis_title="Week Starting",
         yaxis_title="Tacos",
@@ -89,6 +95,37 @@ def make_figures(df):
     fig_messages.update_layout(font=dict(family="Poppins, Arial, sans-serif"))
     
     return fig, fig_messages
+
+
+def make_redemptions_figure(redemptions_df, start_date=None, end_date=None):
+    """Generate a redemptions figure from filtered redemption data."""
+    if start_date and end_date:
+        filtered_redemptions = redemptions_df[
+            (redemptions_df["timestamp"] >= start_date) & (redemptions_df["timestamp"] <= end_date)
+        ].copy()
+    else:
+        filtered_redemptions = redemptions_df.copy()
+    
+    redemptions_by_week = (
+        filtered_redemptions.groupby("week_start")["redemption_amount"]
+        .sum()
+        .reset_index(name="amount")
+    )
+    
+    fig_redemptions = px.line(
+        redemptions_by_week,
+        x="week_start",
+        y="amount",
+        title="Redemption Amount Per Week",
+        markers=True,
+    )
+    fig_redemptions.update_layout(
+        xaxis_title="Week Starting",
+        yaxis_title="Redemption Amount",
+        font=dict(family="Poppins, Arial, sans-serif"),
+    )
+    fig_redemptions.update_traces(line=dict(color=ALT_COLOR))
+    return fig_redemptions
 
 def make_leaderboards_from_df(df):
     """Calculate leaderboards from filtered dataframe."""
@@ -136,6 +173,7 @@ app.title = "Concord Tacos"
 
 # Generate initial figures and leaderboards
 fig, fig_messages = make_figures(base_df)
+fig_redemptions = make_redemptions_figure(redemptions_df)
 lbd_givers, lbd_msg_len, lbd_msg_sent = make_leaderboards_from_df(base_df)
 
 # Helper functions to build leaderboard sections
@@ -259,6 +297,17 @@ app.layout = html.Div(
                             ],
                             style={"padding": "12px"},
                         ),
+                        dcc.Tab(
+                            label="Redemptions",
+                            value="tab-redemptions",
+                            children=[
+                                dcc.Graph(
+                                    id="top-graph-redemptions",
+                                    figure=fig_redemptions,
+                                ),
+                            ],
+                            style={"padding": "12px"},
+                        ),
                     ],
                 ),
             ],
@@ -319,6 +368,7 @@ app.layout = html.Div(
 @callback(
     Output("top-graph-tacos", "figure"),
     Output("top-graph-messages", "figure"),
+    Output("top-graph-redemptions", "figure"),
     Output("leaderboard-givers-content", "children"),
     Output("leaderboard-avg-content", "children"),
     Output("leaderboard-sent-content", "children"),
@@ -337,6 +387,7 @@ def update_dashboards(start_date, end_date):
     
     # Regenerate figures
     fig_updated, fig_messages_updated = make_figures(filtered_df)
+    fig_redemptions_updated = make_redemptions_figure(redemptions_df, start_date, end_date)
     
     # Regenerate leaderboards
     lbd_givers_updated, lbd_msg_len_updated, lbd_msg_sent_updated = make_leaderboards_from_df(filtered_df)
@@ -346,8 +397,9 @@ def update_dashboards(start_date, end_date):
     avg_html = build_leaderboard_avg(lbd_msg_len_updated)
     sent_html = build_leaderboard_sent(lbd_msg_sent_updated)
     
-    return fig_updated, fig_messages_updated, givers_html, avg_html, sent_html
+    return fig_updated, fig_messages_updated, fig_redemptions_updated, givers_html, avg_html, sent_html
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     app.run_server(host="0.0.0.0", port=port, debug=False) 
+    # print(redemptions_df.head())
