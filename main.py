@@ -197,11 +197,34 @@ container_style = {
 }
 
 leaderboard_card_style = {
-    "backgroundColor": "#fff",
+    "backgroundColor": "rgba(255,255,255,0.98)",
     "padding": "16px",
-    "borderRadius": "8px",
-    "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
+    "borderRadius": "16px",
+    "boxShadow": "0 2px 16px rgba(0,0,0,0.08)",
     "marginBottom": "12px",
+}
+
+tab_style = {
+    "padding": "12px",
+    "borderRadius": "18px",
+    "backgroundColor": "rgba(255,255,255,0.75)",
+    "border": "1px solid rgba(0,0,0,0.08)",
+    "color": "#333",
+}
+
+selected_tab_style = {
+    "padding": "12px",
+    "borderRadius": "18px",
+    "backgroundColor": "rgba(255,72,56,0.14)",
+    "border": "1px solid #FF4838",
+    "color": MAIN_COLOR,
+}
+
+tabs_wrapper_style = {
+    "backgroundColor": "rgba(255,255,255,0.92)",
+    "borderRadius": "22px",
+    "padding": "8px",
+    "boxShadow": "0 2px 16px rgba(0,0,0,0.08)",
 }
 
 # Initialize app
@@ -312,6 +335,7 @@ app.layout = html.Div(
                 dcc.Tabs(
                     id="chart-tabs",
                     value="tab-tacos",
+                    style=tabs_wrapper_style,
                     children=[
                         dcc.Tab(
                             label="Tacos",
@@ -322,7 +346,8 @@ app.layout = html.Div(
                                     figure=fig,
                                 ),
                             ],
-                            style={"padding": "12px"},
+                            style=tab_style,
+                            selected_style=selected_tab_style,
                         ),
                         dcc.Tab(
                             label="Messages",
@@ -333,7 +358,8 @@ app.layout = html.Div(
                                     figure=fig_messages,
                                 ),
                             ],
-                            style={"padding": "12px"},
+                            style=tab_style,
+                            selected_style=selected_tab_style,
                         ),
                         dcc.Tab(
                             label="Redemptions",
@@ -344,7 +370,8 @@ app.layout = html.Div(
                                     figure=fig_redemptions,
                                 ),
                             ],
-                            style={"padding": "12px"},
+                            style=tab_style,
+                            selected_style=selected_tab_style,
                         ),
                     ],
                 ),
@@ -362,6 +389,7 @@ app.layout = html.Div(
                 dcc.Tabs(
                     id="leaderboard-tabs",
                     value="tab-givers",
+                    style=tabs_wrapper_style,
                     children=[
                         dcc.Tab(
                             label="Total Tacos Given",
@@ -369,7 +397,8 @@ app.layout = html.Div(
                             children=[
                                 html.Div(id="leaderboard-givers-content", children=build_leaderboard_giver(lbd_givers)),
                             ],
-                            style={"padding": "12px"},
+                            style=tab_style,
+                            selected_style=selected_tab_style,
                         ),
                         dcc.Tab(
                             label="Avg Message Length",
@@ -377,7 +406,8 @@ app.layout = html.Div(
                             children=[
                                 html.Div(id="leaderboard-avg-content", children=build_leaderboard_avg(lbd_msg_len)),
                             ],
-                            style={"padding": "12px"},
+                            style=tab_style,
+                            selected_style=selected_tab_style,
                         ),
                         dcc.Tab(
                             label="Total Messages Sent",
@@ -385,7 +415,8 @@ app.layout = html.Div(
                             children=[
                                 html.Div(id="leaderboard-sent-content", children=build_leaderboard_sent(lbd_msg_sent)),
                             ],
-                            style={"padding": "12px"},
+                            style=tab_style,
+                            selected_style=selected_tab_style,
                         ),
                     ],
                 ),
